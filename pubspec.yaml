@@ -37,6 +37,7 @@ dependencies:
   google_generative_ai: ^0.4.3
   flutter_markdown: ^0.7.3
   google_fonts: ^6.2.1
+  speech_to_text: ^7.0.0
 
 dev_dependencies:
   flutter_test:
@@ -58,11 +59,15 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   fonts:
-    - family: Sathoshi
+    - family: Poppins
       fonts:
-        - asset: fonts/Satoshi-Regular.ttf
-        - asset: fonts/Satoshi-Bold.ttf
+        - asset: fonts/Poppins-Regular.ttf
+        - asset: fonts/Poppins-Bold.ttf
+        - asset: fonts/Poppins-SemiBold.ttf
   uses-material-design: true
+
+  assets:
+    - assets/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

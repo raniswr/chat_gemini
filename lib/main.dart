@@ -1,8 +1,5 @@
-import 'package:chat_gemini/chat_screen.dart';
 import 'package:chat_gemini/onboarding_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 void main() {
   runApp(const MyApp());
@@ -21,7 +18,7 @@ class MyApp extends StatelessWidget {
         fontFamily: 'Sathoshi',
       ),
       debugShowCheckedModeBanner: false,
-      home: OnboardingScreen(),
+      home: const OnboardingScreen(),
     );
   }
 }

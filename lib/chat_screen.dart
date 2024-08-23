@@ -1,8 +1,12 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:speech_to_text/speech_recognition_result.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 
-class MessageWidget extends StatelessWidget {
+class MessageWidget extends StatefulWidget {
   const MessageWidget({
     Key? key,
     required this.text,
@@ -13,30 +17,25 @@ class MessageWidget extends StatelessWidget {
   final bool isFromUser;
 
   @override
+  State<MessageWidget> createState() => _MessageWidgetState();
+}
+
+class _MessageWidgetState extends State<MessageWidget> {
+  @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisAlignment: isFromUser == true ? MainAxisAlignment.end : MainAxisAlignment.start,
+      mainAxisAlignment: widget.isFromUser == true ? MainAxisAlignment.end : MainAxisAlignment.start,
       children: [
         Flexible(
           child: Container(
-            constraints: BoxConstraints(maxWidth: 520),
+            constraints: const BoxConstraints(maxWidth: 520),
             decoration: BoxDecoration(
-              color: isFromUser == true ? Colors.black.withOpacity(0.4) : Colors.white,
-              borderRadius: BorderRadius.circular(25),
-              boxShadow: isFromUser == true
-                  ? null
-                  : [
-                      BoxShadow(
-                        color: Colors.grey.withOpacity(0.5),
-                        spreadRadius: 2,
-                        blurRadius: 5,
-                        offset: Offset(0, 3), // changes position of shadow
-                      ),
-                    ],
+              color: widget.isFromUser == true ? Colors.white : Colors.white.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(10),
             ),
-            margin: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-            padding: EdgeInsets.all(12),
-            child: MarkdownBody(data: text),
+            margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+            padding: const EdgeInsets.all(12),
+            child: MarkdownBody(data: widget.text),
           ),
         ),
       ],
@@ -62,14 +61,19 @@ class _ChatScreenState extends State<ChatScreen> {
   final FocusNode _textFeildFocus = FocusNode();
   final ScrollController _scroll = ScrollController();
   bool? isLoading;
+  bool _speechEnabled = false;
+  String _lastWords = '';
+  final SpeechToText _speechToText = SpeechToText();
+
   @override
   void initState() {
+    super.initState();
     _model = GenerativeModel(
       model: 'gemini-pro',
       apiKey: 'AIzaSyC2o_WDKnc-7KIKJpVeZmyptL85XRO0H9o',
     );
     _chatSession = _model.startChat();
-    super.initState();
+    _initSpeech();
   }
 
   @override
@@ -80,34 +84,81 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
+  void _initSpeech() async {
+    try {
+      _speechEnabled = await _speechToText.initialize();
+      setState(() {});
+    } catch (e) {
+      log('Error initializing speech recognition: $e');
+    }
+  }
+
+  void _startListening() async {
+    await _speechToText.listen(onResult: _onSpeechResult);
+    setState(() {});
+  }
+
+  void _stopListening() async {
+    await _speechToText.stop();
+    setState(() {});
+  }
+
+  void _onSpeechResult(SpeechRecognitionResult result) {
+    setState(() {
+      _lastWords = result.recognizedWords;
+      if (_lastWords != '') {
+        _textEditingController.text = _lastWords;
+      }
+    });
+  }
+
+  void _toggleListening() {
+    if (_speechToText.isNotListening) {
+      _startListening();
+    } else {
+      _stopListening();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        backgroundColor: Colors.black,
+        backgroundColor: Colors.white,
         body: Container(
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             borderRadius: BorderRadiusDirectional.only(
               topStart: Radius.circular(300),
             ),
-            color: Colors.white,
+            color: Color(0xFF14151b),
           ),
           child: Column(
             children: [
               Container(
-                padding: EdgeInsets.fromLTRB(50, 20, 0, 0),
+                padding: const EdgeInsets.only(top: 50),
                 child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    SizedBox(height: 180, width: 180, child: StackCircleWidget()),
+                    Image.asset(
+                      'assets/logo.png', // Path to your image
+                      fit: BoxFit.cover, // Adjust as needed
+                      height: 50,
+                    ),
+                    const SizedBox(
+                      width: 10,
+                    ),
                     Text(
                       'Hello, ${widget.name}',
-                      style: TextStyle(fontFamily: 'Sathoshi', fontSize: 40),
+                      style: const TextStyle(fontFamily: 'Poppins', fontSize: 25, color: Colors.white, fontWeight: FontWeight.bold),
                     ),
+                    const SizedBox(
+                      width: 20,
+                    )
                   ],
                 ),
               ),
               Expanded(
                 child: Padding(
-                  padding: EdgeInsets.fromLTRB(20, 0, 8, 9),
+                  padding: const EdgeInsets.fromLTRB(20, 0, 8, 9),
                   child: ListView.builder(
                     controller: _scroll,
                     itemCount: _chatSession.history.length,
@@ -124,7 +175,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ),
               Padding(
-                padding: EdgeInsets.symmetric(vertical: 25, horizontal: 25),
+                padding: const EdgeInsets.symmetric(vertical: 25, horizontal: 25),
                 child: Row(
                   children: [
                     Expanded(
@@ -133,21 +184,49 @@ class _ChatScreenState extends State<ChatScreen> {
                         focusNode: _textFeildFocus,
                         controller: _textEditingController,
                         // onSubmitted: _sendChat,
+                        style: const TextStyle(
+                          color: Colors.white, // Color for the text input
+                          fontFamily: 'Poppins',
+                          fontSize: 15,
+                        ),
                         decoration: textFieldDecoration(context),
                       ),
                     ),
-                    SizedBox(width: 10),
+                    const SizedBox(width: 10),
+                    GestureDetector(
+                      onTap: _speechEnabled ? _toggleListening : null,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: _speechToText.isListening ? Colors.grey.withOpacity(0.2) : const Color(0xFF14151b),
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        padding: const EdgeInsets.all(10),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: _speechToText.isListening ? Colors.grey.withOpacity(0.2) : const Color(0xFF14151b),
+                            borderRadius: BorderRadius.circular(25),
+                          ),
+                          padding: const EdgeInsets.all(5),
+                          child: Image.asset(
+                            'assets/microphone.png', // Path to your image
+
+                            fit: BoxFit.cover, // Adjust as needed
+                            height: 30,
+                          ),
+                        ),
+                      ),
+                    ),
                     isLoading == true
-                        ? CircularProgressIndicator()
-                        : TextButton(
-                            onPressed: () {
+                        ? const CircularProgressIndicator()
+                        : GestureDetector(
+                            onTap: () {
                               _sendChat(_textEditingController.text);
                             },
-                            child: Text(
-                              'Send',
-                              style: TextStyle(
-                                fontFamily: 'Sathoshi',
-                              ),
+                            child: Image.asset(
+                              'assets/send.png', // Path to your image
+
+                              fit: BoxFit.cover, // Adjust as needed
+                              height: 30,
                             ),
                           ),
                   ],
@@ -166,7 +245,7 @@ class _ChatScreenState extends State<ChatScreen> {
       final response = await _chatSession.sendMessage(Content.text(message));
       final text = response.text;
 
-      print('Received response: $text');
+      log('Received response: $text');
 
       if (text != null) {
         setState(() {
@@ -175,7 +254,7 @@ class _ChatScreenState extends State<ChatScreen> {
         });
       }
     } catch (e) {
-      print('Error sending message: $e');
+      log('Error sending message: $e');
       setState(() {
         isLoading = false;
       });
@@ -190,77 +269,99 @@ class _ChatScreenState extends State<ChatScreen> {
   void _scrollDown() {
     _scroll.animateTo(
       _scroll.position.maxScrollExtent,
-      duration: Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 300),
       curve: Curves.decelerate,
     );
   }
 
   InputDecoration textFieldDecoration(BuildContext context) {
-    return InputDecoration(
+    return const InputDecoration(
       contentPadding: EdgeInsets.all(15),
       hintText: 'Enter Message',
-      hintStyle: TextStyle(
-        fontFamily: 'Sathoshi',
-      ),
+      hintStyle: TextStyle(fontFamily: 'Poppins', fontSize: 15, color: Colors.white),
+      filled: true,
+      fillColor: Color(0xFF2c2b30),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.all(
           Radius.circular(20),
         ),
         borderSide: BorderSide(
-          color: Theme.of(context).primaryColor, // Change border color when focused
+          color: Colors.white,
+          width: 2.0,
         ),
       ),
+
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.all(
           Radius.circular(20),
         ),
         borderSide: BorderSide(
-          color: Colors.black, // Default border color
+          color: Colors.white, // Border color when not focused
+          width: 1.0, // Border width when not focused
+        ),
+      ),
+      // Optionally customize the error border if you want to
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.all(
+          Radius.circular(20),
+        ),
+        borderSide: BorderSide(
+          color: Colors.red, // Border color when there's an error
+          width: 1.0,
+        ),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.all(
+          Radius.circular(20),
+        ),
+        borderSide: BorderSide(
+          color: Colors.red, // Border color when focused and there's an error
+          width: 2.0,
         ),
       ),
     );
   }
 }
 
-class StackCircleWidget extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: <Widget>[
-        Positioned(
-          left: 50,
-          top: 40,
-          child: CircleContainer(size: 50.0),
-        ),
-        Positioned(
-          left: 5,
-          top: 70,
-          child: CircleContainer(size: 80.0),
-        ),
-        Positioned(
-          left: 50,
-          top: 60,
-          child: CircleContainer(size: 110.0),
-        ),
-        // Positioned(
-        //   left: 60,
-        //   top: 260,
-        //   child: CircleContainer(size: 140.0),
-        // ),
-        // Positioned(
-        //   left: 10,
-        //   top: 360,
-        //   child: CircleContainer(size: 170.0),
-        // ),
-        // Positioned(
-        //   left: 40,
-        //   top: 480,
-        //   child: CircleContainer(size: 200.0),
-        // ),
-      ],
-    );
-  }
-}
+// class StackCircleWidget extends StatelessWidget {
+//   @override
+//   Widget build(BuildContext context) {
+//     return Stack(
+//       children: <Widget>[
+//         Positioned(
+//           left: 50,
+//           top: 40,
+//           child: CircleContainer(size: 50.0),
+//         ),
+//         Positioned(
+//           left: 5,
+//           top: 70,
+//           child: CircleContainer(size: 80.0),
+//         ),
+//         Positioned(
+//           left: 50,
+//           top: 60,
+//           child: CircleContainer(size: 110.0),
+//         ),
+//         // Positioned(
+//         //   left: 60,
+//         //   top: 260,
+//         //   child: CircleContainer(size: 140.0),
+//         // ),
+//         // Positioned(
+//         //   left: 10,
+//         //   top: 360,
+//         //   child: CircleContainer(size: 170.0),
+//         // ),
+//         // Positioned(
+//         //   left: 40,
+//         //   top: 480,
+//         //   child: CircleContainer(size: 200.0),
+//         // ),
+//       ],
+//     );
+//   }
+// }
 
 class CircleContainer extends StatelessWidget {
   final double size;
@@ -276,7 +377,7 @@ class CircleContainer extends StatelessWidget {
         shape: BoxShape.circle,
         color: Colors.black.withOpacity(0.3), // Change color as desired
       ),
-      margin: EdgeInsets.all(10.0), // Adjust spacing between circles
+      margin: const EdgeInsets.all(10.0), // Adjust spacing between circles
     );
   }
 }
